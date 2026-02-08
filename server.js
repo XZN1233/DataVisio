@@ -7,8 +7,14 @@ const Redis = require('ioredis');
 const app = express();
 const PORT = 3001;
 
+// 允许跨域，方便前后端分离部署在不同端口或 IP
 app.use(cors());
 app.use(express.json());
+
+// 简单的健康检查接口
+app.get('/', (req, res) => {
+  res.send('DataVisio Backend Proxy is running');
+});
 
 // --- Helper: Create Database Connection ---
 const createDbConnection = async (config) => {
@@ -26,13 +32,15 @@ const createDbConnection = async (config) => {
 // 1. Get Tables & Schema Info
 app.post('/api/mariadb/tables', async (req, res) => {
   const { connection } = req.body;
+  if (!connection) return res.status(400).json({ error: 'Missing connection config' });
+
   let conn;
   try {
     conn = await createDbConnection(connection);
     
     // Get all databases (schemas) excluding system ones
     const [dbs] = await conn.query("SHOW DATABASES WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')");
-    const dbName = dbs[0]?.Database; // Default to first available DB for this demo
+    const dbName = dbs[0]?.Database; 
 
     if (!dbName) {
       return res.json({ tables: [], currentDb: null });
@@ -55,7 +63,7 @@ app.post('/api/mariadb/tables', async (req, res) => {
       name: t.name,
       rowCount: t.rowCount || 0,
       size: `${t.size || 0} MB`,
-      columns: [] // Columns could be fetched lazily or here
+      columns: [] 
     }));
 
     res.json({ tables, currentDb: dbName });
@@ -75,8 +83,6 @@ app.post('/api/mariadb/rows', async (req, res) => {
     conn = await createDbConnection(connection);
     if (db) await conn.changeUser({ database: db });
     
-    // Safety check: sanitize table name strictly or use escaping
-    // For demo simplicity, we assume trusted input or internal usage
     const [rows] = await conn.query(`SELECT * FROM \`${table}\` LIMIT 100`);
     
     res.json({ rows });
@@ -106,12 +112,15 @@ app.post('/api/redis/scan', async (req, res) => {
     // Scan keys
     const [cursor, keys] = await redis.scan(0, 'MATCH', match, 'COUNT', count);
     
+    if (keys.length === 0) {
+       return res.json({ keys: [] });
+    }
+
     // Pipeline to get types and details
     const pipeline = redis.pipeline();
     keys.forEach(key => {
       pipeline.type(key);
       pipeline.ttl(key);
-      // We estimate size roughly by key length here for speed, or debug object in real world
     });
     
     const results = await pipeline.exec();
@@ -162,6 +171,6 @@ app.post('/api/redis/get', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`DataVisio Backend Proxy running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`DataVisio Backend Proxy running on port ${PORT}`);
 });

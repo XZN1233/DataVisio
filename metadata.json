@@ -1,0 +1,5 @@
+{
+  "name": "DataVisio - 多源数据可视化平台",
+  "description": "统一的可视化平台，支持 MariaDB, Redis, ClickHouse, MinIO, Kafka, 和 Milvus。通过 IP/端口连接，无需 Agent 即可探索数据结构和内容。",
+  "requestFramePermissions": []
+}

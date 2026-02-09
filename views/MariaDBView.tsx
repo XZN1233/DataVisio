@@ -38,9 +38,10 @@ export const MariaDBView: React.FC<MariaDBViewProps> = ({ connection }) => {
     }
   };
 
+  // 关键修复：添加 connection?.database 到依赖数组，确保切换数据库时重新加载
   useEffect(() => {
     loadTables();
-  }, [connection?.id, connection?.ip, connection?.username]); // Reload if connection config changes
+  }, [connection?.id, connection?.ip, connection?.username, connection?.database]); 
 
   useEffect(() => {
     const loadRows = async () => {
@@ -84,7 +85,7 @@ export const MariaDBView: React.FC<MariaDBViewProps> = ({ connection }) => {
               <span className="truncate" title={connection?.ip}>{connection?.ip || 'localhost'}</span>
            </div>
           <div className="flex justify-between items-center">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">数据库: {currentDb || '-'}</h3>
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider" title={currentDb}>数据库: {currentDb || (connection?.database ? connection.database : '-')}</h3>
             <button onClick={loadTables} className="text-gray-400 hover:text-blue-600">
                <RefreshCw size={14} className={loadingSchema ? 'animate-spin' : ''} />
             </button>
@@ -147,7 +148,7 @@ export const MariaDBView: React.FC<MariaDBViewProps> = ({ connection }) => {
                 <Database className="text-blue-600" size={20}/>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-800">{selectedTable}</h2>
-                  <div className="text-xs text-gray-400">连接: {connection?.name}</div>
+                  <div className="text-xs text-gray-400">数据库: {currentDb} | 连接: {connection?.name}</div>
                 </div>
               </div>
               <div className="relative">

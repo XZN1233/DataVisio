@@ -230,14 +230,14 @@ export default function App() {
              </div>
           </div>
 
-          {/* Database Name Field */}
+          {/* Database Name Field - Visible for Relational DBs */}
           {(formState.type === ServiceType.MARIADB || formState.type === ServiceType.CLICKHOUSE) && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">数据库名称</label>
               <input 
                 type="text" 
                 className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
-                placeholder="例如: my_database (留空则尝试自动发现)"
+                placeholder={formState.type === ServiceType.CLICKHOUSE ? "default" : "例如: my_database (留空则尝试自动发现)"}
                 value={formState.database || ''}
                 onChange={e => setFormState({...formState, database: e.target.value})}
               />
@@ -251,7 +251,7 @@ export default function App() {
                  type="text" 
                  autoComplete="off"
                  className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
-                 placeholder="root"
+                 placeholder={formState.type === ServiceType.CLICKHOUSE ? "default" : "root"}
                  value={formState.username || ''}
                  onChange={e => setFormState({...formState, username: e.target.value})}
                />
@@ -262,7 +262,7 @@ export default function App() {
                  type="password" 
                  autoComplete="new-password"
                  className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
-                 placeholder="••••••"
+                 placeholder={formState.type === ServiceType.CLICKHOUSE ? "默认为空" : "••••••"}
                  value={formState.password || ''}
                  onChange={e => setFormState({...formState, password: e.target.value})}
                />

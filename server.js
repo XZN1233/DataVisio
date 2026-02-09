@@ -26,8 +26,7 @@ const createDbConnection = async (config) => {
     connectTimeout: 5000
   };
   
-  // Only add database to connection config if specified, 
-  // otherwise mysql2 tries to connect to specific DB and fails if empty/undefined works differently
+  // Only add database to connection config if specified
   if (config.database) {
     options.database = config.database;
   }
@@ -36,6 +35,27 @@ const createDbConnection = async (config) => {
 };
 
 // --- API: MariaDB ---
+
+// 0. Get All Databases (New Endpoint)
+app.post('/api/mariadb/databases', async (req, res) => {
+  const { connection } = req.body;
+  if (!connection) return res.status(400).json({ error: 'Missing connection config' });
+
+  let conn;
+  try {
+    // Create connection without specific database to ensure we can list all
+    const configWithoutDb = { ...connection, database: undefined };
+    conn = await createDbConnection(configWithoutDb);
+    
+    const [dbs] = await conn.query("SHOW DATABASES WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')");
+    res.json({ databases: dbs.map(d => d.Database) });
+  } catch (error) {
+    console.error('MariaDB Databases Error:', error.message);
+    res.status(500).json({ error: error.message });
+  } finally {
+    if (conn) await conn.end();
+  }
+});
 
 // 1. Get Tables & Schema Info
 app.post('/api/mariadb/tables', async (req, res) => {
@@ -51,22 +71,20 @@ app.post('/api/mariadb/tables', async (req, res) => {
 
     // If user did not specify a database, try to find one automatically
     if (!dbName) {
-      // Get all databases (schemas) excluding system ones
       const [dbs] = await conn.query("SHOW DATABASES WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')");
       dbName = dbs[0]?.Database; 
       
-      // If we found a DB, switch to it (though strictly not necessary for information_schema query, good for context)
       if (dbName) {
         await conn.changeUser({ database: dbName });
       }
     }
 
+    console.log(`[MariaDB] Fetching tables for DB: ${dbName || 'None'}`);
+
     if (!dbName) {
       return res.json({ tables: [], currentDb: null });
     }
 
-    // Get Table Statistics
-    // Note: We MUST pass the specific dbName to filter information_schema, otherwise we get tables from all DBs
     const [tablesInfo] = await conn.query(`
       SELECT 
         TABLE_NAME as name, 
@@ -76,7 +94,6 @@ app.post('/api/mariadb/tables', async (req, res) => {
       WHERE TABLE_SCHEMA = ?
     `, [dbName]);
 
-    // Format stats
     const tables = tablesInfo.map(t => ({
       name: t.name,
       rowCount: t.rowCount || 0,
@@ -100,7 +117,6 @@ app.post('/api/mariadb/rows', async (req, res) => {
   try {
     conn = await createDbConnection(connection);
     
-    // Use the DB specified in request (currentDb from frontend) or connection default
     const targetDb = db || connection.database;
     if (targetDb) {
         await conn.changeUser({ database: targetDb });
@@ -139,7 +155,6 @@ app.post('/api/redis/scan', async (req, res) => {
        return res.json({ keys: [] });
     }
 
-    // Pipeline to get types and details
     const pipeline = redis.pipeline();
     keys.forEach(key => {
       pipeline.type(key);
@@ -156,7 +171,7 @@ app.post('/api/redis/scan', async (req, res) => {
         key,
         type: type,
         ttl: ttl,
-        size: key.length * 2 // Crude estimation
+        size: key.length * 2 
       };
     });
 

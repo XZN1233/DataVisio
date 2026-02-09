@@ -61,10 +61,10 @@ export const fetchClickHouseRows = async (connection: ConnectionConfig, table: s
 };
 
 // --- Redis ---
-export const fetchRedisKeys = async (connection: ConnectionConfig, match = '*') => {
-  return request('/redis/scan', { connection, match });
+export const fetchRedisKeys = async (connection: ConnectionConfig, match = '*', db = 0) => {
+  return request('/redis/scan', { connection, match, db });
 };
 
-export const fetchRedisValue = async (connection: ConnectionConfig, key: string, type: string) => {
-  return request('/redis/get', { connection, key, type });
+export const fetchRedisValue = async (connection: ConnectionConfig, key: string, type: string, db = 0) => {
+  return request('/redis/get', { connection, key, type, db });
 };

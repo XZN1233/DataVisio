@@ -1,9 +1,9 @@
 
-import express from 'express';
-import cors from 'cors';
-import mysql from 'mysql2/promise';
-import Redis from 'ioredis';
-import http from 'http';
+const express = require('express');
+const cors = require('cors');
+const mysql = require('mysql2/promise');
+const Redis = require('ioredis');
+const http = require('http');
 
 const app = express();
 const PORT = 3001;
@@ -63,11 +63,15 @@ const runClickHouseQuery = (config, query) => {
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
         if (res.statusCode !== 200) {
-          try {
-             // 尝试解析 ClickHouse 的错误信息
-             reject(new Error(`ClickHouse Error (${res.statusCode}): ${data}`));
-          } catch (e) {
-             reject(new Error(`ClickHouse Error (${res.statusCode})`));
+          if (res.statusCode === 400 && data.includes('Port 9000')) {
+             reject(new Error('配置错误：检测到 9000 端口。本工具使用 HTTP 协议，请将端口改为 8123。'));
+          } else {
+             try {
+                // 尝试解析 ClickHouse 的错误信息
+                reject(new Error(`ClickHouse Error (${res.statusCode}): ${data}`));
+             } catch (e) {
+                reject(new Error(`ClickHouse Error (${res.statusCode})`));
+             }
           }
           return;
         }
@@ -218,20 +222,23 @@ app.post('/api/clickhouse/rows', async (req, res) => {
 // --- API: Redis ---
 
 app.post('/api/redis/scan', async (req, res) => {
-  const { connection, match = '*', count = 100 } = req.body;
+  const { connection, match = '*', count = 100, db = 0 } = req.body;
   const redis = new Redis({
     host: connection.ip,
     port: parseInt(connection.port) || 6379,
     password: connection.password || undefined,
+    db: parseInt(db), // Select DB
     lazyConnect: true,
-    retryStrategy: () => null // Don't retry, fail fast
+    retryStrategy: () => null 
   });
 
   try {
     await redis.connect();
     const [cursor, keys] = await redis.scan(0, 'MATCH', match, 'COUNT', count);
+    
     if (keys.length === 0) return res.json({ keys: [] });
 
+    // Pipelining to get types and TTLs efficiently
     const pipeline = redis.pipeline();
     keys.forEach(key => { pipeline.type(key); pipeline.ttl(key); });
     const results = await pipeline.exec();
@@ -239,7 +246,7 @@ app.post('/api/redis/scan', async (req, res) => {
     const enrichedKeys = keys.map((key, index) => {
       const [errType, type] = results[index * 2];
       const [errTtl, ttl] = results[index * 2 + 1];
-      return { key, type, ttl, size: key.length * 2 };
+      return { key, type, ttl, size: key.length }; // Approximation
     });
 
     res.json({ keys: enrichedKeys });
@@ -252,11 +259,12 @@ app.post('/api/redis/scan', async (req, res) => {
 });
 
 app.post('/api/redis/get', async (req, res) => {
-  const { connection, key, type } = req.body;
+  const { connection, key, type, db = 0 } = req.body;
   const redis = new Redis({
     host: connection.ip,
     port: parseInt(connection.port) || 6379,
     password: connection.password || undefined,
+    db: parseInt(db),
   });
 
   try {
@@ -267,6 +275,7 @@ app.post('/api/redis/get', async (req, res) => {
     else if (type === 'set') value = await redis.smembers(key);
     else if (type === 'zset') value = await redis.zrange(key, 0, -1, 'WITHSCORES');
     else value = 'Unsupported type preview';
+    
     res.json({ value });
   } catch (error) {
     res.status(500).json({ error: error.message });

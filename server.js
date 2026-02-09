@@ -1,8 +1,8 @@
 
-import express from 'express';
-import cors from 'cors';
-import mysql from 'mysql2/promise';
-import Redis from 'ioredis';
+const express = require('express');
+const cors = require('cors');
+const mysql = require('mysql2/promise');
+const Redis = require('ioredis');
 
 const app = express();
 const PORT = 3001;

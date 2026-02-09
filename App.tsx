@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Modal } from './components/Modal';
 import { SERVICE_ICONS, DEFAULT_PORTS } from './constants';
@@ -11,16 +11,36 @@ import { MilvusView } from './views/MilvusView';
 import { ClickHouseView } from './views/ClickHouseView';
 import { Plus, Trash2, Settings, Zap, Pencil } from 'lucide-react';
 
+const STORAGE_KEY = 'datavisio_connections';
+
 export default function App() {
-  const [connections, setConnections] = useState<ConnectionConfig[]>([
-    { id: '1', name: 'Demo Localhost', type: ServiceType.MARIADB, ip: 'localhost', port: '3306', username: 'root', status: 'connected' },
-  ]);
+  // Initialize state from LocalStorage if available
+  const [connections, setConnections] = useState<ConnectionConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to load connections from local storage", e);
+    }
+    // Default fallback if storage is empty
+    return [
+      { id: '1', name: 'Demo Localhost', type: ServiceType.MARIADB, ip: 'localhost', port: '3306', username: 'root', status: 'connected' },
+    ];
+  });
+
   const [activeConnectionId, setActiveConnectionId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   // Connection Form State
   const [formState, setFormState] = useState<Partial<ConnectionConfig>>({ type: ServiceType.MARIADB });
+
+  // Persistence Effect: Save to LocalStorage whenever connections change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(connections));
+  }, [connections]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -141,7 +161,7 @@ export default function App() {
             </div>
 
             <div className="p-4 border-t border-gray-100 text-xs text-center text-gray-400">
-              v1.0.0 • 客户端 + 代理服务
+              v1.0.1 • 本地存储已启用
             </div>
           </div>
         }
@@ -272,7 +292,7 @@ const DashboardPlaceholder = ({ onAdd }: { onAdd: () => void }) => (
       </div>
       <h1 className="text-3xl font-bold text-gray-900">欢迎使用 DataVisio</h1>
       <p className="text-gray-500">
-        统一的数据存储与中间件可视化界面。请确保您已启动本地代理服务 <code>server.js</code> 以连接真实数据。
+        统一的数据存储与中间件可视化界面。您的连接配置现已自动保存。
       </p>
       <button 
         onClick={onAdd}

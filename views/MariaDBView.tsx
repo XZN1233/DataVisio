@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TableSchema, TableRow, ConnectionConfig } from '../types';
-import { Search, Database, Table as TableIcon, Server, AlertCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Search, Database, Table as TableIcon, Server, AlertCircle, RefreshCw, AlertTriangle, Terminal } from 'lucide-react';
 import { fetchMariaDBTables, fetchMariaDBRows } from '../services/api';
 
 interface MariaDBViewProps {
@@ -30,7 +30,8 @@ export const MariaDBView: React.FC<MariaDBViewProps> = ({ connection }) => {
       if (data.tables.length > 0) setSelectedTable(data.tables[0].name);
       else setSelectedTable(null);
     } catch (err: any) {
-      setError(err.message || '无法连接到数据库，请检查后端代理服务 (server.js) 是否运行，以及 IP/账号密码是否正确。');
+      console.error("Connection Error:", err);
+      setError(err.message || '连接失败');
       setTables([]);
     } finally {
       setLoadingSchema(false);
@@ -91,9 +92,28 @@ export const MariaDBView: React.FC<MariaDBViewProps> = ({ connection }) => {
         </div>
         
         {error ? (
-          <div className="p-4 text-xs text-red-600 bg-red-50 m-2 rounded border border-red-100 flex gap-2">
-             <AlertTriangle size={24} className="shrink-0"/>
-             {error}
+          <div className="p-4 m-2">
+            <div className="bg-red-50 text-red-700 p-3 rounded-lg border border-red-100 text-xs">
+               <div className="flex items-center gap-2 font-bold mb-1">
+                 <AlertTriangle size={16} /> 连接失败
+               </div>
+               <p className="mb-2 opacity-90">{error === 'Failed to fetch' ? '无法连接到后端代理服务。' : error}</p>
+               
+               <div className="bg-white p-2 rounded border border-red-200 font-mono text-[10px] text-gray-600">
+                 <div className="flex items-center gap-1 mb-1 font-bold text-gray-800">
+                    <Terminal size={10} /> 这里的解决办法：
+                 </div>
+                 1. 请确保已运行后端服务:
+                 <br/><span className="select-all text-blue-600 bg-blue-50 px-1">node server.js</span>
+                 <br/>2. 确保端口 3001 未被占用
+               </div>
+            </div>
+            <button 
+              onClick={loadTables}
+              className="mt-2 w-full py-2 bg-white border border-gray-300 rounded text-xs font-medium hover:bg-gray-50 text-gray-700"
+            >
+              重试连接
+            </button>
           </div>
         ) : (
           <ul>

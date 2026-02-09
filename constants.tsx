@@ -1,3 +1,4 @@
+
 import { ServiceType } from './types';
 import { 
   Database, 
@@ -21,7 +22,7 @@ export const SERVICE_ICONS: Record<ServiceType, React.ReactNode> = {
 export const DEFAULT_PORTS: Record<ServiceType, string> = {
   [ServiceType.MARIADB]: '3306',
   [ServiceType.REDIS]: '6379',
-  [ServiceType.CLICKHOUSE]: '8123',
+  [ServiceType.CLICKHOUSE]: '9000',
   [ServiceType.MINIO]: '9000',
   [ServiceType.KAFKA]: '9092',
   [ServiceType.MILVUS]: '19530',

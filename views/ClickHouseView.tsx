@@ -55,7 +55,7 @@ export const ClickHouseView: React.FC<ClickHouseViewProps> = ({ connection }) =>
 
     } catch (err: any) {
       console.error("CH Connection Error:", err);
-      setError(err.message || '连接失败 (请检查端口是否为 8123)');
+      setError(err.message || '连接失败 (请检查端口配置)');
       setTables([]);
     } finally {
       setLoadingSchema(false);
@@ -90,7 +90,7 @@ export const ClickHouseView: React.FC<ClickHouseViewProps> = ({ connection }) =>
         <div className="p-4 border-b border-yellow-200/50 bg-yellow-50/50">
            <div className="flex items-center gap-2 mb-3 text-yellow-900 font-semibold">
               <Server size={14} className="text-yellow-600" />
-              <span className="truncate" title={connection?.ip}>{connection?.ip || 'localhost'}:8123</span>
+              <span className="truncate" title={connection?.ip}>{connection?.ip || 'localhost'}:{connection?.port || 9000}</span>
            </div>
           
            {/* Database Switcher */}
@@ -134,6 +134,11 @@ export const ClickHouseView: React.FC<ClickHouseViewProps> = ({ connection }) =>
                  <AlertTriangle size={16} /> 连接失败
                </div>
                <p className="mb-2 opacity-90 truncate" title={error}>{error}</p>
+               {error.includes('npm install') && (
+                 <div className="mt-2 text-[10px] text-gray-400 bg-white p-1 rounded border border-gray-200">
+                   请在后端运行:<br/>npm install clickhouse-driver
+                 </div>
+               )}
             </div>
             <button 
               onClick={loadTables}

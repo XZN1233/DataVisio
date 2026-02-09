@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Modal } from './components/Modal';
@@ -9,7 +10,7 @@ import { MinIOView } from './views/MinIOView';
 import { KafkaView } from './views/KafkaView';
 import { MilvusView } from './views/MilvusView';
 import { ClickHouseView } from './views/ClickHouseView';
-import { Plus, Trash2, Settings, Zap, Pencil } from 'lucide-react';
+import { Plus, Trash2, Settings, Zap, Pencil, AlertTriangle } from 'lucide-react';
 
 const STORAGE_KEY = 'datavisio_connections';
 

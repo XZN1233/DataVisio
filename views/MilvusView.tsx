@@ -1,126 +1,257 @@
+
 import React, { useState, useEffect } from 'react';
-import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { MilvusCollection, VectorPoint, ConnectionConfig } from '../types';
-import { generateMilvusCollections, generateVectorPoints } from '../utils/mockData';
-import { MOCK_DELAY } from '../constants';
-import { Box, Layers, MousePointer2 } from 'lucide-react';
+import { ConnectionConfig } from '../types';
+import { fetchMilvusCollections, fetchMilvusCollectionDetails, fetchMilvusRows } from '../services/api';
+import { Layers, Database, Table as TableIcon, RefreshCw, AlertTriangle, Box, Activity } from 'lucide-react';
 
 interface MilvusViewProps {
   connection?: ConnectionConfig;
 }
 
+interface Collection {
+  name: string;
+  id: string;
+}
+
+interface FieldSchema {
+  name: string;
+  data_type: string; // 101=Bool, 4=Int64, 21=Varchar, 101=FloatVector etc.
+  is_primary_key: boolean;
+  description: string;
+  type_params?: { key: string; value: string }[]; // contains dim for vectors
+}
+
+// Helper to map Milvus DataType IDs to strings if needed, 
+// though SDK usually returns string enum in newer versions.
+// We'll handle generic display.
+
 export const MilvusView: React.FC<MilvusViewProps> = ({ connection }) => {
-  const [collections, setCollections] = useState<MilvusCollection[]>([]);
-  const [selectedColl, setSelectedColl] = useState<MilvusCollection | null>(null);
-  const [points, setPoints] = useState<VectorPoint[]>([]);
-  const [hoveredPoint, setHoveredPoint] = useState<VectorPoint | null>(null);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollName, setSelectedCollName] = useState<string | null>(null);
+  
+  // Details state
+  const [schema, setSchema] = useState<FieldSchema[]>([]);
+  const [rowCount, setRowCount] = useState<number>(0);
+  const [rows, setRows] = useState<any[]>([]);
+  
+  const [activeTab, setActiveTab] = useState<'schema' | 'data'>('schema');
+  
+  const [loadingList, setLoadingList] = useState(false);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load Collections
+  const loadCollections = async () => {
+    if (!connection) return;
+    setLoadingList(true);
+    setError(null);
+    try {
+      const data = await fetchMilvusCollections(connection);
+      setCollections(data.collections || []);
+      if (data.collections.length > 0 && !selectedCollName) {
+         setSelectedCollName(data.collections[0].name);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "连接 Milvus 失败");
+    } finally {
+      setLoadingList(false);
+    }
+  };
 
   useEffect(() => {
-    setCollections(generateMilvusCollections());
-    const initial = generateMilvusCollections();
-    if (initial.length) setSelectedColl(initial[0]);
-  }, []);
+    loadCollections();
+  }, [connection?.id]);
 
+  // Load Details (Schema + Data)
   useEffect(() => {
-    if (selectedColl) {
-      // Simulate dimensional reduction latency
-      setTimeout(() => {
-        setPoints(generateVectorPoints(150));
-      }, MOCK_DELAY);
-    }
-  }, [selectedColl]);
+    const loadDetails = async () => {
+      if (!selectedCollName || !connection) return;
+      setLoadingDetails(true);
+      setRows([]);
+      try {
+        // 1. Get Schema & Stats
+        const details = await fetchMilvusCollectionDetails(connection, selectedCollName);
+        setSchema(details.schema.fields);
+        setRowCount(details.rowCount);
 
-  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+        // 2. Get Data (if tab is data)
+        if (activeTab === 'data') {
+           const rowData = await fetchMilvusRows(connection, selectedCollName);
+           setRows(rowData.rows || []);
+        }
+      } catch (err) {
+        console.error("Failed to load collection details", err);
+      } finally {
+        setLoadingDetails(false);
+      }
+    };
+    loadDetails();
+  }, [selectedCollName, activeTab]);
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-3 border border-gray-200 shadow-lg rounded text-xs">
-          <p className="font-bold mb-1">ID: {data.id}</p>
-          <p>簇 (Cluster): {data.cluster}</p>
-          <p className="text-gray-500">{data.metadata}</p>
-        </div>
-      );
-    }
-    return null;
+  const getDim = (field: FieldSchema) => {
+    const dimParam = field.type_params?.find(p => p.key === 'dim');
+    return dimParam ? dimParam.value : '-';
+  };
+
+  const renderDataValue = (val: any) => {
+     if (Array.isArray(val)) {
+        return <span className="text-gray-400 font-mono text-xs">[Vector dim={val.length}]</span>;
+     }
+     if (typeof val === 'object') return JSON.stringify(val);
+     return String(val);
   };
 
   return (
     <div className="flex h-full bg-white">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-900 text-gray-300 flex flex-col">
-        <div className="p-4 border-b border-gray-800">
-          <h3 className="text-white font-semibold">集合 (Collections)</h3>
+      {/* Sidebar: Collections */}
+      <div className="w-64 bg-gray-900 text-gray-300 flex flex-col border-r border-gray-800">
+        <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+          <div className="flex items-center gap-2 text-white font-semibold">
+             <Layers size={18} />
+             <span>集合列表</span>
+          </div>
+          <button onClick={loadCollections} className="text-gray-400 hover:text-white">
+             <RefreshCw size={14} className={loadingList ? 'animate-spin' : ''} />
+          </button>
         </div>
-        <div className="flex-1 p-2">
-          {collections.map(c => (
-            <div 
-              key={c.name}
-              onClick={() => setSelectedColl(c)}
-              className={`p-3 rounded-md cursor-pointer mb-2 transition-colors ${selectedColl?.name === c.name ? 'bg-blue-600 text-white' : 'hover:bg-gray-800'}`}
-            >
-              <div className="font-medium text-sm">{c.name}</div>
-              <div className="text-[10px] mt-1 opacity-70 flex justify-between">
-                <span>维度: {c.dimension}</span>
-                <span>数量: {c.count}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+        
+        {error ? (
+           <div className="p-4 text-xs text-red-400 bg-red-900/20 m-2 rounded border border-red-900/50">
+             <AlertTriangle size={16} className="mb-1"/>
+             {error}
+             {error.includes('npm install') && (
+                <div className="mt-2 text-[10px] text-gray-400 font-mono bg-black p-1 rounded">
+                   npm install @zilliz/milvus2-sdk-node
+                </div>
+             )}
+           </div>
+        ) : (
+           <div className="flex-1 overflow-y-auto p-2">
+             {collections.map(c => (
+               <div 
+                 key={c.name}
+                 onClick={() => setSelectedCollName(c.name)}
+                 className={`group p-3 rounded-md cursor-pointer mb-1 transition-all flex items-center gap-3 ${selectedCollName === c.name ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-gray-800'}`}
+               >
+                 <Database size={16} className={selectedCollName === c.name ? 'text-blue-200' : 'text-gray-600'} />
+                 <div className="font-medium text-sm truncate" title={c.name}>{c.name}</div>
+               </div>
+             ))}
+             {collections.length === 0 && !loadingList && (
+                <div className="text-center text-gray-600 text-sm mt-10">暂无集合</div>
+             )}
+           </div>
+        )}
       </div>
 
-      {/* Visualization */}
-      <div className="flex-1 flex flex-col">
-         {selectedColl && (
-           <div className="flex-1 p-6 flex flex-col">
-             <div className="mb-6 flex justify-between items-end">
-               <div>
-                 <h2 className="text-2xl font-bold text-gray-800">{selectedColl.name}</h2>
-                 <p className="text-gray-500 text-sm mt-1">2D 投影 (t-SNE 模拟)</p>
-               </div>
-               <div className="flex gap-4">
-                 <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium">
-                   索引: {selectedColl.indexType}
-                 </div>
-                 <div className="bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm font-medium">
-                   向量: {selectedColl.count.toLocaleString()}
-                 </div>
-               </div>
-             </div>
-
-             <div className="flex-1 bg-white border border-gray-200 rounded-xl shadow-inner relative overflow-hidden">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis type="number" dataKey="x" name="X" hide />
-                    <YAxis type="number" dataKey="y" name="Y" hide />
-                    <Tooltip content={<CustomTooltip />} cursor={{ strokeDasharray: '3 3' }} />
-                    <Scatter name="Vectors" data={points} fill="#8884d8">
-                      {points.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[entry.cluster % COLORS.length]} />
-                      ))}
-                    </Scatter>
-                  </ScatterChart>
-                </ResponsiveContainer>
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col bg-gray-50">
+         {selectedCollName ? (
+           <>
+             {/* Header */}
+             <div className="bg-white border-b border-gray-200 px-6 py-4">
+                <div className="flex justify-between items-start">
+                   <div>
+                      <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        {selectedCollName}
+                        {loadingDetails && <RefreshCw size={14} className="animate-spin text-gray-400"/>}
+                      </h2>
+                      <div className="flex items-center gap-4 mt-1 text-sm text-gray-500">
+                         <span className="flex items-center gap-1"><Activity size={14}/> 实体数: {rowCount.toLocaleString()}</span>
+                         <span className="flex items-center gap-1"><Box size={14}/> 字段数: {schema.length}</span>
+                      </div>
+                   </div>
+                </div>
                 
-                {/* Overlay Instructions */}
-                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur border border-gray-200 p-2 rounded text-xs text-gray-500 pointer-events-none">
-                  <div className="flex items-center gap-2">
-                    <MousePointer2 size={12} /> 悬停查看向量元数据
-                  </div>
+                {/* Tabs */}
+                <div className="flex gap-6 mt-6 border-b border-gray-100">
+                   <button 
+                     onClick={() => setActiveTab('schema')}
+                     className={`pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'schema' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                   >
+                     集合结构 (Schema)
+                   </button>
+                   <button 
+                     onClick={() => setActiveTab('data')}
+                     className={`pb-3 text-sm font-medium transition-colors border-b-2 ${activeTab === 'data' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                   >
+                     数据预览 (Data Preview)
+                   </button>
                 </div>
              </div>
-             
-             {/* Legend */}
-             <div className="mt-4 flex justify-center gap-6">
-               {COLORS.map((c, i) => (
-                 <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
-                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: c }}></div>
-                   <span>聚类 {i}</span>
-                 </div>
-               ))}
+
+             {/* Content */}
+             <div className="flex-1 overflow-auto p-6">
+                {activeTab === 'schema' ? (
+                   <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                         <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                            <tr>
+                               <th className="px-6 py-3">字段名称</th>
+                               <th className="px-6 py-3">类型 (DataType)</th>
+                               <th className="px-6 py-3">主键</th>
+                               <th className="px-6 py-3">向量维度</th>
+                               <th className="px-6 py-3">描述</th>
+                            </tr>
+                         </thead>
+                         <tbody className="divide-y divide-gray-100">
+                            {schema.map((field, i) => (
+                               <tr key={i} className="hover:bg-gray-50">
+                                  <td className="px-6 py-3 font-medium text-gray-900">{field.name}</td>
+                                  <td className="px-6 py-3">
+                                     <span className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-600">{field.data_type}</span>
+                                  </td>
+                                  <td className="px-6 py-3">
+                                     {field.is_primary_key && <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs font-bold">PK</span>}
+                                  </td>
+                                  <td className="px-6 py-3 text-gray-600 font-mono">{getDim(field)}</td>
+                                  <td className="px-6 py-3 text-gray-400 italic">{field.description || '-'}</td>
+                               </tr>
+                            ))}
+                         </tbody>
+                      </table>
+                   </div>
+                ) : (
+                   <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                      {rows.length === 0 && !loadingDetails ? (
+                         <div className="p-8 text-center text-gray-400">
+                            <TableIcon size={48} className="mx-auto mb-3 opacity-20"/>
+                            <p>无数据或加载失败</p>
+                            <p className="text-xs mt-1">请确保已加载集合 (Load) 且其中有数据</p>
+                         </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                           <table className="w-full text-sm text-left">
+                              <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200">
+                                 <tr>
+                                    {rows.length > 0 && Object.keys(rows[0]).map(k => (
+                                       <th key={k} className="px-6 py-3 whitespace-nowrap">{k}</th>
+                                    ))}
+                                 </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100">
+                                 {rows.map((row, i) => (
+                                    <tr key={i} className="hover:bg-blue-50/30">
+                                       {Object.values(row).map((val, idx) => (
+                                          <td key={idx} className="px-6 py-3 max-w-xs truncate" title={typeof val !== 'object' ? String(val) : ''}>
+                                             {renderDataValue(val)}
+                                          </td>
+                                       ))}
+                                    </tr>
+                                 ))}
+                              </tbody>
+                           </table>
+                        </div>
+                      )}
+                   </div>
+                )}
              </div>
+           </>
+         ) : (
+           <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+             <Layers size={48} className="mb-4 opacity-20" />
+             <p>请选择左侧的 Milvus 集合</p>
            </div>
          )}
       </div>

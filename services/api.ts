@@ -47,7 +47,7 @@ export const fetchMariaDBRows = async (connection: ConnectionConfig, table: stri
   return request('/mariadb/rows', { connection, table, db });
 };
 
-// --- ClickHouse (New) ---
+// --- ClickHouse ---
 export const fetchClickHouseDatabases = async (connection: ConnectionConfig) => {
   return request('/clickhouse/databases', { connection });
 };
@@ -67,4 +67,17 @@ export const fetchRedisKeys = async (connection: ConnectionConfig, match = '*', 
 
 export const fetchRedisValue = async (connection: ConnectionConfig, key: string, type: string, db = 0) => {
   return request('/redis/get', { connection, key, type, db });
+};
+
+// --- Milvus (New) ---
+export const fetchMilvusCollections = async (connection: ConnectionConfig) => {
+  return request('/milvus/collections', { connection });
+};
+
+export const fetchMilvusCollectionDetails = async (connection: ConnectionConfig, collectionName: string) => {
+  return request('/milvus/describe', { connection, collectionName });
+};
+
+export const fetchMilvusRows = async (connection: ConnectionConfig, collectionName: string) => {
+  return request('/milvus/query', { connection, collectionName });
 };

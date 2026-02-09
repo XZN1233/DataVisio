@@ -1,8 +1,8 @@
 
-import express from 'express';
-import cors from 'cors';
-import mysql from 'mysql2/promise';
-import Redis from 'ioredis';
+const express = require('express');
+const cors = require('cors');
+const mysql = require('mysql2/promise');
+const Redis = require('ioredis');
 
 const app = express();
 const PORT = 3001;
@@ -18,13 +18,21 @@ app.get('/', (req, res) => {
 
 // --- Helper: Create Database Connection ---
 const createDbConnection = async (config) => {
-  return await mysql.createConnection({
+  const options = {
     host: config.ip,
     port: parseInt(config.port) || 3306,
     user: config.username,
     password: config.password,
     connectTimeout: 5000
-  });
+  };
+  
+  // Only add database to connection config if specified, 
+  // otherwise mysql2 tries to connect to specific DB and fails if empty/undefined works differently
+  if (config.database) {
+    options.database = config.database;
+  }
+
+  return await mysql.createConnection(options);
 };
 
 // --- API: MariaDB ---
@@ -38,17 +46,27 @@ app.post('/api/mariadb/tables', async (req, res) => {
   try {
     conn = await createDbConnection(connection);
     
-    // Get all databases (schemas) excluding system ones
-    const [dbs] = await conn.query("SHOW DATABASES WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')");
-    const dbName = dbs[0]?.Database; 
+    // Determine which database to query
+    let dbName = connection.database;
+
+    // If user did not specify a database, try to find one automatically
+    if (!dbName) {
+      // Get all databases (schemas) excluding system ones
+      const [dbs] = await conn.query("SHOW DATABASES WHERE `Database` NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')");
+      dbName = dbs[0]?.Database; 
+      
+      // If we found a DB, switch to it (though strictly not necessary for information_schema query, good for context)
+      if (dbName) {
+        await conn.changeUser({ database: dbName });
+      }
+    }
 
     if (!dbName) {
       return res.json({ tables: [], currentDb: null });
     }
 
-    await conn.changeUser({ database: dbName });
-
     // Get Table Statistics
+    // Note: We MUST pass the specific dbName to filter information_schema, otherwise we get tables from all DBs
     const [tablesInfo] = await conn.query(`
       SELECT 
         TABLE_NAME as name, 
@@ -81,7 +99,12 @@ app.post('/api/mariadb/rows', async (req, res) => {
   let conn;
   try {
     conn = await createDbConnection(connection);
-    if (db) await conn.changeUser({ database: db });
+    
+    // Use the DB specified in request (currentDb from frontend) or connection default
+    const targetDb = db || connection.database;
+    if (targetDb) {
+        await conn.changeUser({ database: targetDb });
+    }
     
     const [rows] = await conn.query(`SELECT * FROM \`${table}\` LIMIT 100`);
     

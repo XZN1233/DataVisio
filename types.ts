@@ -1,3 +1,4 @@
+
 export enum ServiceType {
   MARIADB = 'MariaDB',
   REDIS = 'Redis',
@@ -15,6 +16,7 @@ export interface ConnectionConfig {
   port: string;
   username?: string;
   password?: string;
+  database?: string; // New field for specifying database name
   status: 'connected' | 'error' | 'connecting';
 }
 

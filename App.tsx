@@ -24,7 +24,7 @@ export default function App() {
 
   const openAddModal = () => {
     setEditingId(null);
-    setFormState({ type: ServiceType.MARIADB, name: '', ip: '', port: '', username: '', password: '' });
+    setFormState({ type: ServiceType.MARIADB, name: '', ip: '', port: '', username: '', password: '', database: '' });
     setIsModalOpen(true);
   };
 
@@ -209,6 +209,20 @@ export default function App() {
                 />
              </div>
           </div>
+
+          {/* Database Name Field */}
+          {(formState.type === ServiceType.MARIADB || formState.type === ServiceType.CLICKHOUSE) && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">数据库名称</label>
+              <input 
+                type="text" 
+                className="w-full border border-gray-300 bg-white text-gray-900 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm" 
+                placeholder="例如: my_database (留空则尝试自动发现)"
+                value={formState.database || ''}
+                onChange={e => setFormState({...formState, database: e.target.value})}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

@@ -1,18 +1,20 @@
 
-const express = require('express');
-const cors = require('cors');
-const mysql = require('mysql2/promise');
-const Redis = require('ioredis');
-const http = require('http');
+import express from 'express';
+import cors from 'cors';
+import mysql from 'mysql2/promise';
+import Redis from 'ioredis';
+import http from 'http';
 
 // 尝试导入 Milvus SDK，如果未安装则不报错，但在调用时提示
 let MilvusClient;
-try {
-  const sdk = require('@zilliz/milvus2-sdk-node');
-  MilvusClient = sdk.MilvusClient;
-} catch (e) {
-  console.warn("Optional dependency '@zilliz/milvus2-sdk-node' not found. Milvus features will be disabled.");
-}
+(async () => {
+  try {
+    const sdk = await import('@zilliz/milvus2-sdk-node');
+    MilvusClient = sdk.MilvusClient;
+  } catch (e) {
+    console.warn("Optional dependency '@zilliz/milvus2-sdk-node' not found. Milvus features will be disabled.");
+  }
+})();
 
 const app = express();
 const PORT = 3001;
